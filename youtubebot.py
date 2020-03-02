@@ -25,38 +25,52 @@ async def on_ready():
 
 @client.event
 async def on_message(message):
-    global voice
-
     if message.author == client.user:
         return # ignore messages from ourself
 
     if message.content.startswith('.p ') or message.content.startswith('.play '):
-        if message.author.voice == None:
-            await message.channel.send('Must be in a voice channel to use this command.')
-            return
-        if voice != None and voice.channel != message.author.voice.channel:
-            await message.channel.send('Must be in the same voice channel as the bot to use this command.')
-            return
-        query = message.content[message.content.index(' ')+1:]
-        await message.channel.send(f'Searching for: `{query}`')
-        video_data = search(query)
-        if video_data == None:
-            await message.channel.send('No results found.')
-            return
-        fname, bitrate = get_audio(video_data[1], message.channel)
-        audio = discord.FFmpegOpusAudio(f'{PATH}{fname}', bitrate=bitrate)
-        queue.append(audio)
-        if len(queue) > 1: # 1, not 0, because we just added to it
-            await message.channel.send(f'Adding to queue `{video_data[0]}` https://www.youtube.com/watch?v={video_data[1]}')
-        else:
-            await message.channel.send(f'Now playing `{video_data[0]}` https://www.youtube.com/watch?v={video_data[1]}')
-            voice = await message.author.voice.channel.connect()
-            voice.play(queue[0], after=after)
-        return
+        await play(message)
 
     if message.content.startswith('.skip'):
-        await message.channel.send('Skipping...')
-        voice.stop()
+        await skip(message)
+
+    if message.content.startswith('.clear'):
+        await clear(message)
+
+async def play(message):
+    global voice
+
+    if message.author.voice == None:
+        await message.channel.send('Must be in a voice channel to use this command.')
+        return
+    if voice != None and voice.channel != message.author.voice.channel:
+        await message.channel.send('Must be in the same voice channel as the bot to use this command.')
+        return
+    query = message.content[message.content.index(' ')+1:]
+    await message.channel.send(f'Searching for: `{query}`')
+    video_data = search(query)
+    if video_data == None:
+        await message.channel.send('No results found.')
+        return
+    fname, bitrate = get_audio(video_data[1], message.channel)
+    audio = discord.FFmpegOpusAudio(f'{PATH}{fname}', bitrate=bitrate)
+    queue.append(audio)
+    if len(queue) > 1: # 1, not 0, because we just added to it
+        await message.channel.send(f'Adding to queue `{video_data[0]}` https://www.youtube.com/watch?v={video_data[1]}')
+    else:
+        await message.channel.send(f'Now playing `{video_data[0]}` https://www.youtube.com/watch?v={video_data[1]}')
+        voice = await message.author.voice.channel.connect()
+        voice.play(queue[0], after=after)
+    return
+
+async def skip(message):
+    voice.stop()
+    await message.channel.send('Skipped.')
+
+async def clear(message):
+    voice.stop()
+    queue.clear()
+    await message.channel.send('Cleared.')
 
 def search(query):
     youtube = build('youtube', 'v3', developerKey=ytapi)
@@ -86,8 +100,9 @@ def after(err):
         print(err)
 
     print(queue)
-    queue.pop(0)
     if len(queue) > 0:
+        queue.pop(0)
+    if len(queue) > 0: # this looks redundant but it isn't because len() changes after popping
         voice.play(queue[0], after=after)
     else:
         coro = voice.disconnect()
