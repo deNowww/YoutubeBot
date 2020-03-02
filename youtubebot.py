@@ -3,6 +3,9 @@ import discord
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
+from pytube import YouTube
+
+import os.path
 
 client = discord.Client()
 with open('token.txt') as t:
@@ -12,7 +15,7 @@ with open('token.txt') as t:
 
 @client.event
 async def on_ready():
-    print(f"We have logged in as {client.user}!")
+    print(f"Logged in as {client.user}")
 
 @client.event
 async def on_message(message):
@@ -25,12 +28,14 @@ async def on_message(message):
             return
         query = message.content[message.content.index(' ')+1:]
         await message.channel.send(f'Searching for: `{query}`')
-        video = search(query)
-        if video == None:
+        video_data = search(query)
+        if video_data == None:
             await message.channel.send('No results found.')
             return
-        await message.channel.send(f'Now playing `{video[0]}`: https://www.youtube.com/watch?v={video[1]}')
-        await message.author.voice.channel.connect()
+        await message.channel.send(f'Now playing `{video_data[0]}`: https://www.youtube.com/watch?v={video_data[1]}')
+        voice = await message.author.voice.channel.connect()
+        get_audio(video_data[1], message.channel)
+        audio = create_audio()
 
 def search(query):
     youtube = build('youtube', 'v3', developerKey=ytapi)
@@ -39,5 +44,21 @@ def search(query):
         if result['id']['kind'] == 'youtube#video':
             return (result['snippet']['title'], result['id']['videoId'])
     return None
+
+def get_audio(vid_id, channel):
+    yt = YouTube(f'https://youtu.be/{vid_id}')
+    if yt.length > 3600:
+        channel.send("Video is longer than 1 hour, may take a moment to begin...")
+    lowest_bitrate = yt.streams.filter(only_audio=True).order_by('abr')[0] # lowest quality audio because we want that SPEED
+    filename = vid_id
+    index = 0
+    while os.path.isfile(f'./sample/{filename}'):
+        filename = vid_id + str(index)
+        index += 1
+    lowest_bitrate.download(output_path='./sample', filename=vid_id)
+    return filename
+
+def create_audio():
+    pass
 
 client.run(token)
