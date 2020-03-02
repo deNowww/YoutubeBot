@@ -13,7 +13,10 @@ async def on_message(message):
     if message.author == client.user:
         return # ignore messages from ourself
 
-    if message.content.startswith('.'):
-        await message.channel.send('whas gewd niggaaaaaa')
+    if message.content.startswith('.p ') or message.content.startswith('.play '):
+        if message.author.voice == None:
+            await message.channel.send("Must be in a voice channel to use this command.")
+            return
+        await message.author.voice.channel.connect()
 
 client.run(token)
