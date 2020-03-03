@@ -51,9 +51,7 @@ async def on_message(message):
         await np(message)
 
 async def np(message):
-    pass
-
-# todo: test direct url linking
+    pass # todo
 
 async def play(message):
     global voice
@@ -147,6 +145,5 @@ def after(err):
         except:
             pass
         voice = None
-    # todo: remove file
 
 client.run(token)
