@@ -10,6 +10,11 @@ import asyncio
 
 PATH = './sample/'
 
+welcome_message = 'Thanks for adding YoutubeBot! My command prefix is `.` So far, there are three commands:\n'
+                + '`.play | .p [youtube url or search query]`: starts playing the video (or first search result) in the voice channel.\n'
+                + '`.skip`: skips the currently playing video and leaves the channel if it is the last in the queue.\n'
+                + '`.clear`: clears the queue and leaves the voice channel.'
+
 queue = []
 voice = None
 
@@ -18,6 +23,11 @@ with open('token.txt') as t:
     lines = t.readlines()
     token = lines[0][:-1] # remove trailing newline
     ytapi = lines[1][:-1]
+
+@client.event
+async def on_guild_join(guild):
+
+    await guild.text_channels[0].send(welcome_message)
 
 @client.event
 async def on_ready():
