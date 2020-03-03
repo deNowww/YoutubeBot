@@ -51,7 +51,11 @@ async def on_message(message):
         await np(message)
 
 async def np(message):
+<<<<<<< HEAD
     pass
+=======
+    pass  # todo
+>>>>>>> dev
 
 async def play(message):
     global voice
