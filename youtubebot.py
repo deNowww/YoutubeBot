@@ -10,10 +10,10 @@ import asyncio
 
 PATH = './sample/'
 
-welcome_message = 'Thanks for adding YoutubeBot! My command prefix is `.` So far, there are three commands:\n'
-                + '`.play | .p [youtube url or search query]`: starts playing the video (or first search result) in the voice channel.\n'
-                + '`.skip`: skips the currently playing video and leaves the channel if it is the last in the queue.\n'
-                + '`.clear`: clears the queue and leaves the voice channel.'
+welcome_message = '''Thanks for adding YoutubeBot! My command prefix is `.` So far, there are three commands:
+`.play [youtube url | search query`  - plays a song from the url or from the search query
+`.skip` - skips the current song and leaves the channel if the queue is empty
+`.clear` - clears the queue and leaves the voice channel'''
 
 queue = []
 voice = None
