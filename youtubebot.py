@@ -51,7 +51,7 @@ async def on_message(message):
         await np(message)
 
 async def np(message):
-    pass # todo
+    pass  # todo
 
 async def play(message):
     global voice
