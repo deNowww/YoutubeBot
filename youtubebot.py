@@ -5,7 +5,7 @@ from googleapiclient.errors import HttpError
 
 from pytube import YouTube
 
-import os.path
+import os
 import asyncio
 
 PATH = './sample/'
@@ -37,6 +37,14 @@ async def on_message(message):
     if message.content.startswith('.clear'):
         await clear(message)
 
+    if message.content.startswith('.np'):
+        await np(message)
+
+async def np(message):
+    pass
+
+# todo: test direct url linking
+
 async def play(message):
     global voice
 
@@ -47,20 +55,34 @@ async def play(message):
         await message.channel.send('Must be in the same voice channel as the bot to use this command.')
         return
     query = message.content[message.content.index(' ')+1:]
-    await message.channel.send(f'Searching for: `{query}`')
-    video_data = search(query)
-    if video_data == None:
-        await message.channel.send('No results found.')
-        return
+    video_data = None
+    if query.startswith('https://www.youtube.com/watch?v=') or query.startswith('https://youtube.com/watch?v='):
+        await message.channel.send(f'Getting video...')
+        vid_id = query[query.index('=')+1:]
+        video_data = (get_title(vid_id), vid_id)
+    elif query.startswith('https://youtu.be/'):
+        await message.channel.send(f'Getting video...')
+        vid_id = query[query.index('be/')+3:]
+        video_data = (get_title(vid_id), vid_id)
+    elif query.startswith('https://www.youtube.com/embed/') or query.startswith('https://youtube.com/embed/'):
+        await message.channel.send(f'Getting video...')
+        vid_id = query[query.index('embed/')+6:]
+        video_data = (get_title(vid_id), vid_id)
+    else:
+        await message.channel.send(f'Searching for: `{query}`')
+        video_data = search(query)
+        if video_data == None:
+            await message.channel.send('No results found.')
+            return
     fname, bitrate = get_audio(video_data[1], message.channel)
     audio = discord.FFmpegOpusAudio(f'{PATH}{fname}', bitrate=bitrate)
-    queue.append(audio)
+    queue.append((audio, fname))
     if len(queue) > 1: # 1, not 0, because we just added to it
         await message.channel.send(f'Adding to queue `{video_data[0]}` https://www.youtube.com/watch?v={video_data[1]}')
     else:
         await message.channel.send(f'Now playing `{video_data[0]}` https://www.youtube.com/watch?v={video_data[1]}')
         voice = await message.author.voice.channel.connect()
-        voice.play(queue[0], after=after)
+        voice.play(queue[0][0], after=after)
     return
 
 async def skip(message):
@@ -79,6 +101,9 @@ def search(query):
         if result['id']['kind'] == 'youtube#video':
             return (result['snippet']['title'], result['id']['videoId'])
     return None
+
+def get_title(vid_id):
+    return YouTube(f'https://youtu.be/{vid_id}').title
 
 def get_audio(vid_id, channel):
     yt = YouTube(f'https://youtu.be/{vid_id}')
@@ -99,11 +124,11 @@ def after(err):
     if err != None:
         print(err)
 
-    print(queue)
     if len(queue) > 0:
+        os.remove(PATH+queue[0][1])
         queue.pop(0)
     if len(queue) > 0: # this looks redundant but it isn't because len() changes after popping
-        voice.play(queue[0], after=after)
+        voice.play(queue[0][0], after=after)
     else:
         coro = voice.disconnect()
         fut = asyncio.run_coroutine_threadsafe(coro, client.loop)
@@ -112,6 +137,6 @@ def after(err):
         except:
             pass
         voice = None
-    # todo: cleanup, leave, remove file
+    # todo: remove file
 
 client.run(token)
