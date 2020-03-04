@@ -25,9 +25,19 @@ with open('token.txt') as t:
     ytapi = lines[1][:-1]
 
 @client.event
-async def on_guild_join(guild):
+async def on_error(err, *args, **kwargs):
+    print(err)
+    if voice is not None:
+        await voice.disconnect()
 
-    await guild.text_channels[0].send(welcome_message)
+@client.event
+async def on_guild_join(guild):
+    for text_channel in guild.text_channels:
+        try:
+            await text_channel.send(welcome_message)
+            return
+        except discord.errors.Forbidden:
+            print("Couldn't send welcome message to a voice channel.")
 
 @client.event
 async def on_ready():
