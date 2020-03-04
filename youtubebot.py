@@ -39,23 +39,23 @@ with open('token.txt') as t:
 @client.event
 async def on_guild_join(guild):
     servers[guild.id] = [None, []]
+    with open('servers.txt', 'a') as s:
+        s.write(f'{guild.id}\n')
     for text_channel in guild.text_channels:
         try:
             await text_channel.send(welcome_message)
             return
         except discord.errors.Forbidden:
             print("Couldn't send welcome message to a voice channel.")
-    with open('servers.txt', 'a') as s:
-        s.write(f'{guild.id}\n')
 
 @client.event
-async def on_guild_leave(guild):
+async def on_guild_remove(guild):
     servers.pop(guild.id)
     with open("servers.txt", "r+") as f:
         d = f.readlines()
         f.seek(0)
         for i in d:
-            if i != str(guild.id):
+            if i != f'{guild.id}\n':
                 f.write(i)
         f.truncate()
 
@@ -120,7 +120,7 @@ async def play(message):
     else:
         await message.channel.send(f'Now playing `{video_data[0]}` https://www.youtube.com/watch?v={video_data[1]}')
         info[0] = await message.author.voice.channel.connect()
-        info[0].play(info[1][0][0], after=partial(after, _, message.guild.id))
+        info[0].play(info[1][0][0], after=partial(after, None, message.guild.id))
     return
 
 async def skip(message):
@@ -175,8 +175,8 @@ def get_audio(vid_id, channel):
     lowest_bitrate.download(output_path=PATH, filename=filename)
     return (f'{filename}.{lowest_bitrate.mime_type[lowest_bitrate.mime_type.index("/")+1:]}', int(lowest_bitrate.abr[:-4]))
 
-def after(err, server_id):
-    info = servers[server_id]
+def after(err, *args):
+    info = servers[args[0]]
 
     if err != None:
         print(err)
@@ -185,7 +185,7 @@ def after(err, server_id):
         os.remove(PATH+info[1][0][1])
         info[1].pop(0)
     if len(info[1]) > 0: # this looks redundant but it isn't because len() changes after popping
-        info[0].play(info[1][0][0], after=partial(after, _, server_id))
+        info[0].play(info[1][0][0], after=partial(after, None, server_id))
     else:
         coro = info[0].disconnect()
         fut = asyncio.run_coroutine_threadsafe(coro, client.loop)
