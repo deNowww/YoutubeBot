@@ -5,11 +5,12 @@ from googleapiclient.errors import HttpError
 
 from pytube import YouTube
 
+import glob
 import os
 import asyncio
 from functools import partial
 
-PATH = './sample/'
+PATH = 'sample/'
 
 welcome_message = '''Thanks for adding YoutubeBot! My command prefix is `.` So far, there are three commands:
 `.play [youtube url | search query`  - plays a song from the url or from the search query
@@ -112,9 +113,10 @@ async def play(message):
         if video_data == None:
             await message.channel.send('No results found.')
             return
-    fname, bitrate = get_audio(video_data[1], message.channel)
-    audio = discord.FFmpegOpusAudio(f'{PATH}{fname}', bitrate=bitrate)
-    info[1].append((audio, fname))
+    path, bitrate = get_audio(video_data[1], message.channel)
+    audio = discord.FFmpegOpusAudio(path, bitrate=bitrate)
+    info[1].append((audio, path))
+    print(f'queue: {info[1]}')
     if len(info[1]) > 1: # 1, not 0, because we just added to it
         await message.channel.send(f'Adding to queue `{video_data[0]}` https://www.youtube.com/watch?v={video_data[1]}')
     else:
@@ -145,7 +147,9 @@ async def clear(message):
         await message.channel.send('Must be in the same voice channel as the bot to use this command.')
         return
     info[0].stop()
-    info[1].clear()
+    while len(info[1]) > 0:
+        os.remove(info[1][0][1])
+        info[1].pop(0)
     await message.channel.send('Cleared.')
 
 def get_voice(server):
@@ -167,13 +171,14 @@ def get_audio(vid_id, channel):
     if yt.length > 3600:
         channel.send("Video is longer than 1 hour, may take a moment to begin...")
     lowest_bitrate = yt.streams.filter(only_audio=True).order_by('abr')[0] # lowest quality audio because we want that SPEED
-    filename = vid_id
+    filename = f'{vid_id}_0'
     index = 0
-    while os.path.isfile(f'{PATH}{filename}'):
-        filename = f'{vid_id}#{index}'
+    while glob.glob(f'{PATH}{filename}.*'):
+        filename = f'{vid_id}_{index}'
         index += 1
-    lowest_bitrate.download(output_path=PATH, filename=filename)
-    return (f'{filename}.{lowest_bitrate.mime_type[lowest_bitrate.mime_type.index("/")+1:]}', int(lowest_bitrate.abr[:-4]))
+    path = lowest_bitrate.download(output_path=PATH, filename=filename, skip_existing=False)
+    print(f'{path=}')
+    return (path, int(lowest_bitrate.abr[:-4]))
 
 def after(err, *args):
     info = servers[args[0]]
@@ -182,10 +187,10 @@ def after(err, *args):
         print(err)
 
     if len(info[1]) > 0:
-        os.remove(PATH+info[1][0][1])
+        os.remove(info[1][0][1])
         info[1].pop(0)
     if len(info[1]) > 0: # this looks redundant but it isn't because len() changes after popping
-        info[0].play(info[1][0][0], after=partial(after, None, server_id))
+        info[0].play(info[1][0][0], after=partial(after, None, args[0]))
     else:
         coro = info[0].disconnect()
         fut = asyncio.run_coroutine_threadsafe(coro, client.loop)
