@@ -1,4 +1,5 @@
 import discord
+from discord.ext import commands
 
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
@@ -7,13 +8,15 @@ from pytube import YouTube
 
 import glob
 import os
+import sys
+import subprocess as sp
 import asyncio
 from functools import partial
 
 PATH = 'sample/'
 
 welcome_message = '''Thanks for adding YoutubeBot! My command prefix is `.` So far, there are three commands:
-`.play [youtube url | search query`  - plays a song from the url or from the search query
+`.play [youtube url or search query]`  - plays a song from the url or from the search query
 `.skip` - skips the current song and leaves the channel if the queue is empty
 `.clear` - clears the queue and leaves the voice channel'''
 
@@ -25,19 +28,21 @@ try:
 except FileNotFoundError:
     pass
 
-client = discord.Client()
+bot = commands.Bot(command_prefix='.')
+
+# client = discord.Client()
 with open('token.txt') as t:
     lines = t.readlines()
     token = lines[0][:-1]
     ytapi = lines[1][:-1]
 
-# @client.event
-# async def on_error(err, *args, **kwargs):
-#     print(err)
-#     if voice is not None:
-#         await voice.disconnect()
+@bot.event
+async def on_command_error(ctx, err):
+    print(f"Something broke, restarting: {ctx.channel.id}")
+    await ctx.send("Something broke, restarting.")
+    sp.run(['./restart.sh', str(ctx.channel.id)])
 
-@client.event
+@bot.event
 async def on_guild_join(guild):
     servers[guild.id] = [None, []]
     with open('servers.txt', 'a') as s:
@@ -49,7 +54,7 @@ async def on_guild_join(guild):
         except discord.errors.Forbidden:
             print("Couldn't send welcome message to a voice channel.")
 
-@client.event
+@bot.event
 async def on_guild_remove(guild):
     servers.pop(guild.id)
     with open("servers.txt", "r+") as f:
@@ -60,97 +65,111 @@ async def on_guild_remove(guild):
                 f.write(i)
         f.truncate()
 
-@client.event
+@bot.event
 async def on_ready():
-    print(f"Logged in as {client.user}")
+    print(f'Logged in as {bot.user}')
+    if len(sys.argv) > 1:
+        print(f'Announcing return to channel id {sys.argv[1]}')
+        await bot.get_channel(int(sys.argv[1])).send("...and we're back!")
 
-@client.event
-async def on_message(message):
-    if message.author == client.user:
-        return # ignore messages from ourself
+# @bot.event
+# async def on_message(message):
+#     if message.author == bot.user:
+#         return # ignore messages from ourself
 
-    if message.content.startswith('.p ') or message.content.startswith('.play '):
-        await play(message)
+#     if message.content.startswith('.p ') or message.content.startswith('.play '):
+#         await play(message)
 
-    if message.content.startswith('.skip'):
-        await skip(message)
+#     if message.content == '.s' or message.content == '.skip':
+#         await skip(message)
 
-    if message.content.startswith('.clear'):
-        await clear(message)
+#     if message.content == '.clear':
+#         await clear(message)
 
-    if message.content.startswith('.np'):
-        await np(message)
+#     if message.content == '.np':
+#         await np(message)
 
-async def np(message):
-    pass  # todo
+@bot.command(name='np')
+async def np(ctx):
+    pass # todo
 
-async def play(message):
-    info = servers[message.guild.id]
+@bot.command(name='p')
+async def p(ctx, *, query):
+    await play(ctx, query=query)
 
-    if message.author.voice == None:
-        await message.channel.send('Must be in a voice channel to use this command.')
+@bot.command(name='play')
+async def play(ctx, *, query):
+    info = servers[ctx.guild.id]
+
+    if ctx.author.voice == None:
+        await ctx.send('Must be in a voice channel to use this command.')
         return
-    if info[0] != None and info[0].channel != message.author.voice.channel:
-        await message.channel.send('Must be in the same voice channel as the bot to use this command.')
+    if info[0] != None and info[0].channel != ctx.author.voice.channel:
+        await ctx.send('Must be in the same voice channel as the bot to use this command.')
         return
-    query = message.content[message.content.index(' ')+1:]
     video_data = None
     if query.startswith('https://www.youtube.com/watch?v=') or query.startswith('https://youtube.com/watch?v='):
-        await message.channel.send(f'Getting video...')
+        await ctx.send(f'Getting video...')
         vid_id = query[query.index('=')+1:]
         video_data = (get_title(vid_id), vid_id)
     elif query.startswith('https://youtu.be/'):
-        await message.channel.send(f'Getting video...')
+        await ctx.send(f'Getting video...')
         vid_id = query[query.index('be/')+3:]
         video_data = (get_title(vid_id), vid_id)
     elif query.startswith('https://www.youtube.com/embed/') or query.startswith('https://youtube.com/embed/'):
-        await message.channel.send(f'Getting video...')
+        await ctx.send(f'Getting video...')
         vid_id = query[query.index('embed/')+6:]
         video_data = (get_title(vid_id), vid_id)
     else:
-        await message.channel.send(f'Searching for: `{query}`')
+        await ctx.send(f'Searching for: `{query}`')
         video_data = search(query)
         if video_data == None:
-            await message.channel.send('No results found.')
+            await ctx.send('No results found.')
             return
-    path, bitrate = get_audio(video_data[1], message.channel)
+    path, bitrate = get_audio(video_data[1], ctx.channel)
     audio = discord.FFmpegOpusAudio(path, bitrate=bitrate)
     info[1].append((audio, path))
     print(f'queue: {info[1]}')
     if len(info[1]) > 1: # 1, not 0, because we just added to it
-        await message.channel.send(f'Adding to queue `{video_data[0]}` https://www.youtube.com/watch?v={video_data[1]}')
+        await ctx.send(f'Adding to queue `{video_data[0]}` https://www.youtube.com/watch?v={video_data[1]}')
     else:
-        await message.channel.send(f'Now playing `{video_data[0]}` https://www.youtube.com/watch?v={video_data[1]}')
-        info[0] = await message.author.voice.channel.connect()
-        info[0].play(info[1][0][0], after=partial(after, None, message.guild.id))
+        await ctx.send(f'Now playing `{video_data[0]}` https://www.youtube.com/watch?v={video_data[1]}')
+        info[0] = await ctx.author.voice.channel.connect()
+        info[0].play(info[1][0][0], after=partial(after, None, ctx.guild.id))
     return
 
-async def skip(message):
-    info = servers[message.guild.id]
+@bot.command()
+async def s(ctx):
+    await skip(ctx)
 
-    if message.author.voice == None:
-        await message.channel.send('Must be in a voice channel to use this command.')
+@bot.command()
+async def skip(ctx):
+    info = servers[ctx.guild.id]
+
+    if ctx.author.voice == None:
+        await ctx.send('Must be in a voice channel to use this command.')
         return
-    if info[0] != None and info[0].channel != message.author.voice.channel:
-        await message.channel.send('Must be in the same voice channel as the bot to use this command.')
+    if info[0] != None and info[0].channel != ctx.author.voice.channel:
+        await ctx.send('Must be in the same voice channel as the bot to use this command.')
         return
     info[0].stop()
-    await message.channel.send('Skipped.')
+    await ctx.send('Skipped.')
 
-async def clear(message):
-    info = servers[message.guild.id]
+@bot.command()
+async def clear(ctx):
+    info = servers[ctx.guild.id]
 
-    if message.author.voice == None:
-        await message.channel.send('Must be in a voice channel to use this command.')
+    if ctx.author.voice == None:
+        await ctx.send('Must be in a voice channel to use this command.')
         return
-    if info[0] != None and info[0].channel != message.author.voice.channel:
-        await message.channel.send('Must be in the same voice channel as the bot to use this command.')
+    if info[0] != None and info[0].channel != ctx.author.voice.channel:
+        await ctx.send('Must be in the same voice channel as the bot to use this command.')
         return
     info[0].stop()
     while len(info[1]) > 0:
         os.remove(info[1][0][1])
         info[1].pop(0)
-    await message.channel.send('Cleared.')
+    await ctx.send('Cleared.')
 
 def get_voice(server):
     return servers[server][0]
@@ -193,11 +212,11 @@ def after(err, *args):
         info[0].play(info[1][0][0], after=partial(after, None, args[0]))
     else:
         coro = info[0].disconnect()
-        fut = asyncio.run_coroutine_threadsafe(coro, client.loop)
+        fut = asyncio.run_coroutine_threadsafe(coro, bot.loop)
         try:
             fut.result()
         except:
             pass
         info[0] = None
 
-client.run(token)
+bot.run(token)
