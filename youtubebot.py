@@ -39,6 +39,7 @@ with open('token.txt') as t:
 @bot.event
 async def on_command_error(ctx, err):
     print(f"Something broke, restarting: {ctx.channel.id}")
+    print(sys.exc_info())
     await ctx.send("Something broke, restarting.")
     sp.run(['./restart.sh', str(ctx.channel.id)])
 
@@ -73,21 +74,18 @@ async def on_ready():
         await bot.get_channel(int(sys.argv[1])).send("...and we're back!")
 
 # @bot.event
-# async def on_message(message):
-#     if message.author == bot.user:
-#         return # ignore messages from ourself
+# async def on_voice_state_update(member, before, after):
+#     if member == bot.user:
+#         if before.channel is not None and before.channel != after.channel: # we only care about channel-related changes
+#             if after.channel is None and servers[before.channel.guild.id][0] is not None: # manually disconnected from voice channel
+#                 info = servers[before.channel.guild.id]
+#                 info[0] = None
+#                 while len(info[1]) > 0:
+#                     os.remove(info[1][0][1])
+#                     info[1].pop(0)
+#             else: # moved to another voice channel
+#                 servers[before.channel.guild.id][0] = get_relevant_voice_client(after.channel.id)
 
-#     if message.content.startswith('.p ') or message.content.startswith('.play '):
-#         await play(message)
-
-#     if message.content == '.s' or message.content == '.skip':
-#         await skip(message)
-
-#     if message.content == '.clear':
-#         await clear(message)
-
-#     if message.content == '.np':
-#         await np(message)
 
 @bot.command(name='np')
 async def np(ctx):
@@ -126,6 +124,7 @@ async def play(ctx, *, query):
         if video_data == None:
             await ctx.send('No results found.')
             return
+    print(video_data)
     path, bitrate = get_audio(video_data[1], ctx.channel)
     audio = discord.FFmpegOpusAudio(path, bitrate=bitrate)
     info[1].append((audio, path))
@@ -152,6 +151,9 @@ async def skip(ctx):
     if info[0] != None and info[0].channel != ctx.author.voice.channel:
         await ctx.send('Must be in the same voice channel as the bot to use this command.')
         return
+    if info[0] == None:
+        await ctx.send('Nothing playing.')
+        return
     info[0].stop()
     await ctx.send('Skipped.')
 
@@ -171,6 +173,12 @@ async def clear(ctx):
         info[1].pop(0)
     await ctx.send('Cleared.')
 
+# def get_relevant_voice_client(channel_id):
+#     for v in bot.voice_clients:
+#         if channel_id == v.channel.id:
+#             return v
+#     return None
+
 def get_voice(server):
     return servers[server][0]
 
@@ -186,10 +194,13 @@ def get_title(vid_id):
     return YouTube(f'https://youtu.be/{vid_id}').title
 
 def get_audio(vid_id, channel):
+    print(f'https://youtu.be/{vid_id}')
     yt = YouTube(f'https://youtu.be/{vid_id}')
+    print(yt)
     if yt.length > 3600:
         channel.send("Video is longer than 1 hour, may take a moment to begin...")
     lowest_bitrate = yt.streams.filter(only_audio=True).order_by('abr')[0] # lowest quality audio because we want that SPEED
+    print(lowest_bitrate)
     filename = f'{vid_id}_0'
     index = 0
     while glob.glob(f'{PATH}{filename}.*'):
