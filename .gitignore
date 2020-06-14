@@ -1,4 +1,5 @@
 .DS_Store
 token.txt
+servers.txt
 sample/
 nohup.out
