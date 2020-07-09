@@ -40,8 +40,8 @@ with open('token.txt') as t:
 async def on_command_error(ctx, err):
     print(f"Something broke, restarting: {ctx.channel.id}")
     print(sys.exc_info())
-    await ctx.send("Something broke, restarting.")
-    sp.run(['./restart.sh', str(ctx.channel.id)])
+    await ctx.send("Something broke, restarting. Give me a few seconds.")
+    sp.run(['./restart.sh'])
 
 @bot.event
 async def on_guild_join(guild):
@@ -69,9 +69,6 @@ async def on_guild_remove(guild):
 @bot.event
 async def on_ready():
     print(f'Logged in as {bot.user}')
-    if len(sys.argv) > 1:
-        print(f'Announcing return to channel id {sys.argv[1]}')
-        await bot.get_channel(int(sys.argv[1])).send("...and we're back!")
 
 # @bot.event
 # async def on_voice_state_update(member, before, after):
