@@ -1,6 +1,8 @@
 import discord
 from discord.ext import commands
 
+import traceback
+
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
@@ -39,6 +41,8 @@ with open('token.txt') as t:
 @bot.event
 async def on_command_error(ctx, err):
     print(f"Something broke, restarting: {ctx.channel.id}")
+    traceback.print_exception(type(err), err, err.__traceback__)
+    print(err)
     print(sys.exc_info())
     await ctx.send("Something broke, restarting. Give me a few seconds.")
     sp.run(['./restart.sh'])
