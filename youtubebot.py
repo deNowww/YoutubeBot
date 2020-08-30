@@ -110,6 +110,7 @@ async def play(ctx, *, query):
         await ctx.send('Must be in the same voice channel as the bot to use this command.')
         return
     video_data = None
+    query = query.trim()
     if query.startswith('https://www.youtube.com/watch?v=') or query.startswith('https://youtube.com/watch?v='):
         await ctx.send(f'Getting video...')
         vid_id = query[query.index('=')+1:]
