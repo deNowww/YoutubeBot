@@ -40,6 +40,9 @@ with open('token.txt') as t:
 
 @bot.event
 async def on_command_error(ctx, err):
+    if type(err) == commands.CommandNotFound:
+        await ctx.send('Unknown command.')
+        return
     print(f"Something broke, restarting: {ctx.channel.id}")
     traceback.print_exception(type(err), err, err.__traceback__)
     print(err)
